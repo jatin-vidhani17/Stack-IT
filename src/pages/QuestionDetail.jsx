@@ -1,17 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { db } from '../config/Firebase';
-import { doc, getDoc, collection, getDocs, setDoc, Timestamp } from 'firebase/firestore';
-import QuestionHeader from '../components/QuestionDetail/QuestionHeader';
-import QuestionContent from '../components/QuestionDetail/QuestionContent';
-import AnswerItem from '../components/QuestionDetail/AnswerItem';
-import AnswerDialog from '../components/QuestionDetail/AnswerDialog';
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { db } from "../config/Firebase";
+import {
+  doc,
+  getDoc,
+  collection,
+  getDocs,
+  setDoc,
+  Timestamp,
+} from "firebase/firestore";
+import QuestionHeader from "../components/QuestionDetail/QuestionHeader";
+import QuestionContent from "../components/QuestionDetail/QuestionContent";
+import AnswerItem from "../components/QuestionDetail/AnswerItem";
+import AnswerDialog from "../components/QuestionDetail/AnswerDialog";
 
 export default function QuestionDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isAnswerDialogOpen, setIsAnswerDialogOpen] = useState(false);
-  const [comment, setComment] = useState('');
+  const [comment, setComment] = useState("");
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [answerToComment, setAnswerToComment] = useState(null);
   const [question, setQuestion] = useState(null);
@@ -20,21 +27,23 @@ export default function QuestionDetail() {
   const [error, setError] = useState(null);
 
   // Get current user's username from sessionStorage
-  const userSession = JSON.parse(sessionStorage.getItem('userSession'));
-  const currentUsername = userSession ? userSession.username : 'Anonymous';
+  const userSession = JSON.parse(sessionStorage.getItem("userSession"));
+  const currentUsername = userSession ? userSession.username : "Anonymous";
 
   // Function to calculate time ago
   const getTimeAgo = (createdAt) => {
-    if (!(createdAt instanceof Date)) return 'just now';
+    if (!(createdAt instanceof Date)) return "just now";
     const now = new Date();
     const diffInSeconds = Math.floor((now - createdAt) / 1000);
     if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
     const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+    if (diffInMinutes < 60)
+      return `${diffInMinutes} minute${diffInMinutes !== 1 ? "s" : ""} ago`;
     const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+    if (diffInHours < 24)
+      return `${diffInHours} hour${diffInHours !== 1 ? "s" : ""} ago`;
     const diffInDays = Math.floor(diffInHours / 24);
-    return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
+    return `${diffInDays} day${diffInDays !== 1 ? "s" : ""} ago`;
   };
 
   // Fetch question and answers from Firestore
@@ -44,10 +53,10 @@ export default function QuestionDetail() {
       setError(null);
       try {
         // Fetch question
-        const questionRef = doc(db, 'questions', id);
+        const questionRef = doc(db, "questions", id);
         const questionSnap = await getDoc(questionRef);
         if (!questionSnap.exists()) {
-          throw new Error('Question not found');
+          throw new Error("Question not found");
         }
         const questionData = questionSnap.data();
 
@@ -55,7 +64,7 @@ export default function QuestionDetail() {
         const tagIds = questionData.question_tags || [];
         const tagNames = await Promise.all(
           tagIds.map(async (tagId) => {
-            const tagRef = doc(db, 'tags', tagId);
+            const tagRef = doc(db, "tags", tagId);
             const tagSnap = await getDoc(tagRef);
             return tagSnap.exists() ? tagSnap.data().tag_name : tagId; // Fallback to tagId if not found
           })
@@ -67,32 +76,45 @@ export default function QuestionDetail() {
           description: questionData.question_description,
           tags: tagNames,
           answers: 0, // Will be updated after fetching answers
-          username: questionData.username || 'Anonymous',
-          timeAgo: getTimeAgo(questionData.created_at.toDate()),
+          username: questionData.username || "Anonymous",
+          timeAgo: questionData.created_at
+            ? getTimeAgo(questionData.created_at.toDate())
+            : "just now",
           votes: questionData.votes || 0,
           userVote: null,
         };
 
         // Fetch answers
-        const answersRef = collection(db, 'questions', id, 'answers');
+        const answersRef = collection(db, "questions", id, "answers");
         const answersSnap = await getDocs(answersRef);
         const answersFormatted = await Promise.all(
           answersSnap.docs.map(async (answerDoc) => {
             const answerData = answerDoc.data();
             // Fetch comments for each answer
-            const commentsRef = collection(db, 'questions', id, 'answers', answerDoc.id, 'comments');
+            const commentsRef = collection(
+              db,
+              "questions",
+              id,
+              "answers",
+              answerDoc.id,
+              "comments"
+            );
             const commentsSnap = await getDocs(commentsRef);
             const comments = commentsSnap.docs.map((commentDoc) => ({
               id: commentDoc.id,
               content: commentDoc.data().content,
-              username: commentDoc.data().username || 'Anonymous',
-              timeAgo: getTimeAgo(commentDoc.data().created_at.toDate()),
+              username: commentDoc.data().username || "Anonymous",
+              timeAgo: commentDoc.data().created_at
+                ? getTimeAgo(commentDoc.data().created_at.toDate())
+                : "just now",
             }));
             return {
               id: answerDoc.id,
               content: answerData.content,
-              username: answerData.username || 'Anonymous',
-              timeAgo: getTimeAgo(answerData.created_at.toDate()),
+              username: answerData.username || "Anonymous",
+              timeAgo: answerData.created_at
+                ? getTimeAgo(answerData.created_at.toDate())
+                : "just now",
               votes: answerData.votes || 0,
               userVote: null,
               isAccepted: answerData.isAccepted || false,
@@ -105,8 +127,8 @@ export default function QuestionDetail() {
         setQuestion(questionFormatted);
         setAnswers(answersFormatted);
       } catch (err) {
-        console.error('Error fetching question:', err);
-        setError('Failed to load question details');
+        console.error("Error fetching question:", err);
+        setError("Failed to load question details");
       } finally {
         setLoading(false);
       }
@@ -116,31 +138,35 @@ export default function QuestionDetail() {
   }, [id]);
 
   const handleVote = (type, itemId, itemType) => {
-    if (itemType === 'question') {
-      setQuestion(prev => ({
+    if (itemType === "question") {
+      setQuestion((prev) => ({
         ...prev,
-        votes: prev.votes + (type === 'up' ? 1 : -1),
-        userVote: type
+        votes: prev.votes + (type === "up" ? 1 : -1),
+        userVote: type,
       }));
     } else {
-      setAnswers(prev => prev.map(ans => {
-        if (ans.id === itemId) {
-          return {
-            ...ans,
-            votes: ans.votes + (type === 'up' ? 1 : -1),
-            userVote: type
-          };
-        }
-        return ans;
-      }));
+      setAnswers((prev) =>
+        prev.map((ans) => {
+          if (ans.id === itemId) {
+            return {
+              ...ans,
+              votes: ans.votes + (type === "up" ? 1 : -1),
+              userVote: type,
+            };
+          }
+          return ans;
+        })
+      );
     }
   };
 
   const handleAcceptAnswer = (answerId) => {
-    setAnswers(prev => prev.map(ans => ({
-      ...ans,
-      isAccepted: ans.id === answerId
-    })));
+    setAnswers((prev) =>
+      prev.map((ans) => ({
+        ...ans,
+        isAccepted: ans.id === answerId,
+      }))
+    );
   };
 
   const handleAddComment = (answerId) => {
@@ -150,20 +176,22 @@ export default function QuestionDetail() {
       id: Date.now(),
       content: comment,
       username: currentUsername,
-      timeAgo: 'just now'
+      timeAgo: "just now",
     };
 
-    setAnswers(prev => prev.map(ans => {
-      if (ans.id === answerId) {
-        return {
-          ...ans,
-          comments: [...ans.comments, newComment]
-        };
-      }
-      return ans;
-    }));
+    setAnswers((prev) =>
+      prev.map((ans) => {
+        if (ans.id === answerId) {
+          return {
+            ...ans,
+            comments: [...ans.comments, newComment],
+          };
+        }
+        return ans;
+      })
+    );
 
-    setComment('');
+    setComment("");
     setShowCommentInput(false);
     setAnswerToComment(null);
   };
@@ -173,20 +201,19 @@ export default function QuestionDetail() {
 
     const newAnswer = {
       id: Date.now(),
-      content: answerContent.content, // Extract content from object
+      content: answerContent,
       username: currentUsername,
-      timeAgo: 'just now',
+      timeAgo: "just now",
       votes: 0,
       userVote: null,
       isAccepted: false,
       comments: [],
-      questionId: id // Include questionId in newAnswer
     };
 
-    setAnswers(prev => [...prev, newAnswer]);
-    setQuestion(prev => ({
+    setAnswers((prev) => [...prev, newAnswer]);
+    setQuestion((prev) => ({
       ...prev,
-      answers: prev.answers + 1
+      answers: prev.answers + 1,
     }));
   };
 
@@ -208,12 +235,12 @@ export default function QuestionDetail() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      <QuestionHeader onBack={() => navigate('/')} />
+      <QuestionHeader onBack={() => navigate("/")} />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         <QuestionContent
           question={question}
-          onVote={(type) => handleVote(type, question.id, 'question')}
+          onVote={(type) => handleVote(type, question.id, "question")}
         />
 
         <div className="space-y-6 mt-8">
@@ -226,18 +253,20 @@ export default function QuestionDetail() {
               Post Your Answer
             </button>
           </div>
-          
+
           {answers.map((answer) => (
             <AnswerItem
               key={answer.id}
               answer={answer}
-              onVote={(type) => handleVote(type, answer.id, 'answer')}
+              onVote={(type) => handleVote(type, answer.id, "answer")}
               onAccept={() => handleAcceptAnswer(answer.id)}
               onAddComment={() => {
                 setShowCommentInput(true);
                 setAnswerToComment(answer.id);
               }}
-              showCommentInput={showCommentInput && answerToComment === answer.id}
+              showCommentInput={
+                showCommentInput && answerToComment === answer.id
+              }
               commentValue={comment}
               onCommentChange={(e) => setComment(e.target.value)}
               onCommentSubmit={() => handleAddComment(answer.id)}
@@ -249,7 +278,6 @@ export default function QuestionDetail() {
           isOpen={isAnswerDialogOpen}
           onClose={() => setIsAnswerDialogOpen(false)}
           onSubmit={handleSubmitAnswer}
-          id={id}
         />
       </main>
     </div>

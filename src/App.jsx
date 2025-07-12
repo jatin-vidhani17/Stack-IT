@@ -11,6 +11,7 @@ import QuestionDetail from './pages/QuestionDetail';
 import ErrorBoundary from './components/ErrorBoundary';
 import CreateQuestion from './pages/CreateQuestion';
 import Profile from './components/Profile';
+import UserManagement from './admin/UserManagement';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -41,6 +42,7 @@ function App() {
           <Route path="/reset-password" element={!user ? <ResetPassword /> : <Navigate to="/" />} />
           <Route path="/question/:id" element={<QuestionDetail />} />
           <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
+          <Route path="/admin" element={<UserManagement/>} />
         </Routes>
       </ErrorBoundary>
       </FirebaseProvider>

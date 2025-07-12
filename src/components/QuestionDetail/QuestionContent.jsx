@@ -30,7 +30,11 @@ export default function QuestionContent({ question, onVote }) {
         <div className="flex-1">
           <h1 className="text-2xl font-bold mb-4">{question.title}</h1>
           <div className="prose prose-invert max-w-none mb-4">
-            <p>{question.description}</p>
+            {/* Use dangerouslySetInnerHTML to render HTML content */}
+            <div 
+              dangerouslySetInnerHTML={{ __html: question.description }}
+              className="text-gray-300 leading-relaxed"
+            />
           </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
