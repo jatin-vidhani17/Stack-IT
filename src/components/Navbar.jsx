@@ -10,7 +10,9 @@ export default function Navbar({ searchQuery, setSearchQuery, sortBy, setSortBy 
         <div className="flex items-center space-x-4">
           <h1 className="text-2xl font-bold text-white">StackIt</h1>
           <div className="flex items-center space-x-2">
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+            <button 
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              onClick={() => navigate('/create-question')}>
               Ask New Question
             </button>
             <button 
