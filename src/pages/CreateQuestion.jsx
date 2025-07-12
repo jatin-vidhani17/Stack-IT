@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     ArrowLeft,
     Bold,
@@ -32,13 +32,29 @@ export default function CreateQuestion() {
     const [isLoading, setIsLoading] = useState(false);
     const [attachedFiles, setAttachedFiles] = useState([]);
     const [showPreview, setShowPreview] = useState(false);
-
+    const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
     const descriptionRef = useRef(null);
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
     // Common emojis for quick insertion
     const commonEmojis = ['😀', '😊', '😂', '🤔', '😍', '👍', '👎', '❤️', '🔥', '💯', '🚀', '💡', '⚡', '🎉', '🤖', '💻'];
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            const picker = document.getElementById('emoji-picker');
+            const emojiButton = document.querySelector('[title="Insert Emoji"]');
 
+            if (picker &&
+                !picker.contains(e.target) &&
+                !emojiButton.contains(e.target)) {
+                setIsEmojiPickerOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -371,36 +387,46 @@ export default function CreateQuestion() {
                                             <Code size={16} />
                                         </button>
                                     </div>
-
                                     {/* Emoji Picker */}
                                     <div className="flex items-center space-x-1">
-                                        <div className="relative group">
+                                        <div className="relative">
                                             <button
                                                 type="button"
                                                 className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded transition-colors"
                                                 title="Insert Emoji"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsEmojiPickerOpen(!isEmojiPickerOpen);
+                                                }}
                                             >
                                                 <Smile size={16} />
                                             </button>
-                                            <div className="absolute top-full left-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                                                <div className="grid grid-cols-4 gap-1">
-                                                    {commonEmojis.map((emoji, index) => (
-                                                        <button
-                                                            key={index}
-                                                            type="button"
-                                                            onClick={() => insertEmoji(emoji)}
-                                                            // Fix: Use font for emoji rendering and increase font size for clarity
-                                                            className="p-1 hover:bg-gray-600 rounded text-lg"
-                                                            style={{ fontFamily: 'Apple Color Emoji,Segoe UI Emoji,NotoColorEmoji,Segoe UI Symbol,Android Emoji,EmojiSymbols', fontSize: '1.5rem', lineHeight: '1.5rem' }}
-                                                        >
-                                                            {emoji}
-                                                        </button>
-                                                    ))}
+                                            {isEmojiPickerOpen && (
+                                                <div
+                                                    id="emoji-picker"
+                                                    className="absolute top-full left-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg p-2 z-50 w-64 max-h-64 overflow-y-auto"
+                                                >
+                                                    <div className="grid grid-cols-6 gap-1">
+                                                        {commonEmojis.map((emoji, index) => (
+                                                            <button
+                                                                key={index}
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    insertEmoji(emoji);
+                                                                    // Don't close the picker here
+                                                                }}
+                                                                className="p-1 hover:bg-gray-600 rounded text-lg flex items-center justify-center"
+                                                                style={{ fontFamily: 'system-ui, sans-serif' }}
+                                                            >
+                                                                {emoji}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            )}
                                         </div>
                                     </div>
-// ...existing code...
                                 </div>
 
                                 {/* Rich Text Editor */}
@@ -521,8 +547,8 @@ export default function CreateQuestion() {
                                     onClick={handleSubmit}
                                     disabled={isLoading}
                                     className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${isLoading
-                                            ? 'bg-gray-600 cursor-not-allowed'
-                                            : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800'
+                                        ? 'bg-gray-600 cursor-not-allowed'
+                                        : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800'
                                         } text-white`}
                                 >
                                     {isLoading ? (
