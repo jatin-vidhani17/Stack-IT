@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Navbar from '../components/Navbar';
 import QuestionCard from '../components/Home/QuestionCard';
+import CreateQuestion from '../components/Home/CreateQuestion';
 import Pagination from '../components/Home/Pagination';
 
 export default function Home() {
