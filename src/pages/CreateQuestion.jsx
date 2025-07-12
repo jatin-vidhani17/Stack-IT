@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     ArrowLeft,
     Bold,
@@ -20,8 +20,12 @@ import {
     Underline
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { collection, doc, setDoc, getDoc, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { useFirebase } from '../config/Firebase'; // Import useFirebase hook
+import { uploadVideoToCloudinary, uploadThumbnailToCloudinary, uploadPDFToCloudinary } from '../components/Cloudinary'; // Import Cloudinary upload functions
 
 export default function CreateQuestion() {
+    const { db } = useFirebase(); // Access Firestore db via context
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -32,36 +36,18 @@ export default function CreateQuestion() {
     const [isLoading, setIsLoading] = useState(false);
     const [attachedFiles, setAttachedFiles] = useState([]);
     const [showPreview, setShowPreview] = useState(false);
-    const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+
     const descriptionRef = useRef(null);
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
-    // Common emojis for quick insertion
     const commonEmojis = ['😀', '😊', '😂', '🤔', '😍', '👍', '👎', '❤️', '🔥', '💯', '🚀', '💡', '⚡', '🎉', '🤖', '💻'];
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            const picker = document.getElementById('emoji-picker');
-            const emojiButton = document.querySelector('[title="Insert Emoji"]');
 
-            if (picker &&
-                !picker.contains(e.target) &&
-                !emojiButton.contains(e.target)) {
-                setIsEmojiPickerOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, []);
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
             ...prev,
             [name]: value
         }));
-        // Clear error when user starts typing
         if (errors[name]) {
             setErrors(prev => ({
                 ...prev,
@@ -108,7 +94,7 @@ export default function CreateQuestion() {
         const files = Array.from(e.target.files);
         const validFiles = files.filter(file => {
             const maxSize = 10 * 1024 * 1024; // 10MB
-            const allowedTypes = ['image/', 'application/pdf', 'text/', 'application/json'];
+            const allowedTypes = ['image/', 'application/pdf', 'text/', 'application/json', 'video/'];
             return file.size <= maxSize && allowedTypes.some(type => file.type.startsWith(type));
         });
 
@@ -183,16 +169,79 @@ export default function CreateQuestion() {
 
         setIsLoading(true);
 
-        // Simulate API call
-        setTimeout(() => {
-            console.log('Question submission:', {
-                ...formData,
-                description: descriptionRef.current?.innerHTML,
-                attachedFiles: attachedFiles.map(f => f.name)
+        try {
+            // Step 1: Upload files to Cloudinary based on file type
+            const fileUrls = await Promise.all(
+                attachedFiles.map(async (file) => {
+                    if (file.type.startsWith('video/')) {
+                        return await uploadVideoToCloudinary(file);
+                    } else if (file.type.startsWith('image/')) {
+                        return await uploadThumbnailToCloudinary(file);
+                    } else if (file.type === 'application/pdf') {
+                        return await uploadPDFToCloudinary(file);
+                    } else if (file.type.startsWith('text/') || file.type === 'application/json') {
+                        return await uploadPDFToCloudinary(file); // Treat text/json as raw files like PDFs
+                    } else {
+                        throw new Error(`Unsupported file type: ${file.type}`);
+                    }
+                })
+            );
+
+            // Step 2: Handle tags (check if they exist in Firestore by tag_name, create if not)
+            const tagIds = await Promise.all(
+                formData.tags.map(async (tag) => {
+                    // Query tags collection for documents where tag_name matches the tag
+                    const tagsQuery = query(collection(db, 'tags'), where('tag_name', '==', tag));
+                    const querySnapshot = await getDocs(tagsQuery);
+
+                    if (!querySnapshot.empty) {
+                        // If tag exists, return the first matching tag's tag_id
+                        const tagDoc = querySnapshot.docs[0];
+                        return tagDoc.data().tag_id || tagDoc.id; // Use tag_id if available, else document ID
+                    } else {
+                        // Create new tag document with generated ID
+                        const newTagRef = await addDoc(collection(db, 'tags'), {
+                            tag_id: '', // Placeholder, will update with document ID
+                            tag_name: tag
+                        });
+                        // Update the tag document with its own ID as tag_id
+                        await setDoc(doc(db, 'tags', newTagRef.id), {
+                            tag_id: newTagRef.id,
+                            tag_name: tag
+                        }, { merge: true });
+                        return newTagRef.id; // Return the new tag_id
+                    }
+                })
+            );
+
+            // Step 3: Create question document in Firestore
+            const questionRef = collection(db, 'questions');
+            const newQuestionDoc = await addDoc(questionRef, {
+                question_id: '', // Placeholder, will update with document ID
+                question_title: formData.title,
+                question_description: descriptionRef.current?.innerHTML || '',
+                question_file: fileUrls, // Array of Cloudinary URLs
+                question_tags: tagIds, // Array of tag IDs
+                created_at: new Date()
             });
+
+            // Update the question_id with the document ID
+            await setDoc(doc(db, 'questions', newQuestionDoc.id), {
+                question_id: newQuestionDoc.id,
+                question_title: formData.title,
+                question_description: descriptionRef.current?.innerHTML || '',
+                question_file: fileUrls,
+                question_tags: tagIds,
+                created_at: new Date()
+            }, { merge: true });
+
             setIsLoading(false);
             alert('Question submitted successfully!');
-        }, 2000);
+        } catch (error) {
+            console.error('Error submitting question:', error);
+            setIsLoading(false);
+            alert('Failed to submit question. Please try again.');
+        }
     };
 
     const handleBackToHome = () => {
@@ -203,6 +252,7 @@ export default function CreateQuestion() {
         if (file.type.startsWith('image/')) return '🖼️';
         if (file.type === 'application/pdf') return '📄';
         if (file.type.startsWith('text/')) return '📝';
+        if (file.type.startsWith('video/')) return '🎥';
         return '📎';
     };
 
@@ -256,8 +306,7 @@ export default function CreateQuestion() {
                                     name="title"
                                     value={formData.title}
                                     onChange={handleInputChange}
-                                    className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${errors.title ? 'border-red-500' : 'border-gray-600'
-                                        }`}
+                                    className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${errors.title ? 'border-red-500' : 'border-gray-600'}`}
                                     placeholder="What's your programming question? Be specific."
                                 />
                                 {errors.title && (
@@ -387,44 +436,32 @@ export default function CreateQuestion() {
                                             <Code size={16} />
                                         </button>
                                     </div>
+
                                     {/* Emoji Picker */}
                                     <div className="flex items-center space-x-1">
-                                        <div className="relative">
+                                        <div className="relative group">
                                             <button
                                                 type="button"
                                                 className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded transition-colors"
                                                 title="Insert Emoji"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setIsEmojiPickerOpen(!isEmojiPickerOpen);
-                                                }}
                                             >
                                                 <Smile size={16} />
                                             </button>
-                                            {isEmojiPickerOpen && (
-                                                <div
-                                                    id="emoji-picker"
-                                                    className="absolute top-full left-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg p-2 z-50 w-64 max-h-64 overflow-y-auto"
-                                                >
-                                                    <div className="grid grid-cols-6 gap-1">
-                                                        {commonEmojis.map((emoji, index) => (
-                                                            <button
-                                                                key={index}
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    insertEmoji(emoji);
-                                                                    // Don't close the picker here
-                                                                }}
-                                                                className="p-1 hover:bg-gray-600 rounded text-lg flex items-center justify-center"
-                                                                style={{ fontFamily: 'system-ui, sans-serif' }}
-                                                            >
-                                                                {emoji}
-                                                            </button>
-                                                        ))}
-                                                    </div>
+                                            <div className="absolute top-full left-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                                                <div className="grid grid-cols-4 gap-1">
+                                                    {commonEmojis.map((emoji, index) => (
+                                                        <button
+                                                            key={index}
+                                                            type="button"
+                                                            onClick={() => insertEmoji(emoji)}
+                                                            className="p-1 hover:bg-gray-600 rounded text-lg"
+                                                            style={{ fontFamily: 'Apple Color Emoji,Segoe UI Emoji,NotoColorEmoji,Segoe UI Symbol,Android Emoji,EmojiSymbols', fontSize: '1.5rem', lineHeight: '1.5rem' }}
+                                                        >
+                                                            {emoji}
+                                                        </button>
+                                                    ))}
                                                 </div>
-                                            )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -434,8 +471,7 @@ export default function CreateQuestion() {
                                     ref={descriptionRef}
                                     contentEditable
                                     onInput={handleDescriptionChange}
-                                    className={`w-full min-h-64 p-4 bg-gray-700 border border-t-0 rounded-b-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 overflow-y-auto ${errors.description ? 'border-red-500' : 'border-gray-600'
-                                        }`}
+                                    className={`w-full min-h-64 p-4 bg-gray-700 border border-t-0 rounded-b-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 overflow-y-auto ${errors.description ? 'border-red-500' : 'border-gray-600'}`}
                                     style={{ maxHeight: '400px' }}
                                     placeholder="Describe your problem in detail. Include what you've tried and what specific help you need."
                                 />
@@ -464,10 +500,10 @@ export default function CreateQuestion() {
                                         multiple
                                         onChange={handleFileUpload}
                                         className="hidden"
-                                        accept="image/*,.pdf,.txt,.json"
+                                        accept="image/*,.pdf,.txt,.json,video/*"
                                     />
                                     <span className="text-xs text-gray-400">
-                                        Images, PDFs, text files (max 10MB each)
+                                        Images, PDFs, text files, videos (max 10MB each)
                                     </span>
                                 </div>
 
@@ -547,8 +583,8 @@ export default function CreateQuestion() {
                                     onClick={handleSubmit}
                                     disabled={isLoading}
                                     className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${isLoading
-                                        ? 'bg-gray-600 cursor-not-allowed'
-                                        : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800'
+                                            ? 'bg-gray-600 cursor-not-allowed'
+                                            : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800'
                                         } text-white`}
                                 >
                                     {isLoading ? (

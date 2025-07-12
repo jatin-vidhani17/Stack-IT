@@ -1,11 +1,17 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function QuestionCard({ question }) {
+  const navigate = useNavigate();
+
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:bg-gray-750 transition-colors">
+    <div
+      className="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:bg-gray-750 transition-colors cursor-pointer"
+      onClick={() => navigate(`/question/${question.id}`)}
+    >
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-blue-400 hover:text-blue-300 cursor-pointer mb-2">
+          <h3 className="text-lg font-semibold text-blue-400 hover:text-blue-300 mb-2">
             {question.title}
           </h3>
           <p className="text-gray-300 mb-4 line-clamp-2">

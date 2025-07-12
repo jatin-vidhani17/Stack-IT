@@ -5,7 +5,7 @@ import {
   Code, Underline, Upload, X
 } from 'lucide-react';
 
-export default function AnswerDialog({ isOpen, onClose, onSubmit, initialContent = '' }) {
+export default function AnswerDialog({ isOpen, onClose, onSubmit, initialContent = '', id }) {
   const [answer, setAnswer] = useState(initialContent);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
@@ -39,7 +39,8 @@ export default function AnswerDialog({ isOpen, onClose, onSubmit, initialContent
     setIsSubmitting(true);
     await onSubmit({
       content: answerRef.current.innerHTML,
-      attachedFiles
+      attachedFiles,
+      questionId: id // Include questionId in the submitted data
     });
     setIsSubmitting(false);
     onClose();
@@ -323,24 +324,25 @@ export default function AnswerDialog({ isOpen, onClose, onSubmit, initialContent
               className="px-4 py-2 border border-gray-600 rounded-md hover:bg-gray-700 transition-colors"
             >
               Cancel
-            </button>              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting || !answerRef.current?.textContent?.trim()}
-                className={`px-6 py-2 rounded-md transition-colors ${
-                  isSubmitting || !answerRef.current?.textContent?.trim()
-                    ? 'bg-blue-800 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                } text-white`}
-              >
-                {isSubmitting ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Posting...</span>
-                  </div>
-                ) : (
-                  'Post Your Answer'
-                )}
-              </button>
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !answerRef.current?.textContent?.trim()}
+              className={`px-6 py-2 rounded-md transition-colors ${
+                isSubmitting || !answerRef.current?.textContent?.trim()
+                  ? 'bg-blue-800 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } text-white`}
+            >
+              {isSubmitting ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Posting...</span>
+                </div>
+              ) : (
+                'Post Your Answer'
+              )}
+            </button>
           </div>
         </div>
       </div>
